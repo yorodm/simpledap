@@ -40,14 +40,22 @@ pub enum Value<'a>{
 }
 
 impl<'a> From<Vec<Variable<'a>>> for TupleValue<'a>{
-    fn from(_: Vec<Variable>) -> Self {
-        todo!()
+    fn from(v: Vec<Variable<'a>>) -> Self {
+        if v.is_empty() {
+            TupleValue::Empty
+        } else {
+            TupleValue::Data(v)
+        }
     }
 }
 
 impl<'a> From<Vec<Variable<'a>>> for ListValue<'a>{
-    fn from(_: Vec<Variable>) -> Self {
-        todo!()
+    fn from(v: Vec<Variable<'a>>) -> Self {
+        if v.is_empty(){
+            ListValue::Empty
+        } else {
+            ListValue::VariableList(v)
+        }
     }
 }
 
