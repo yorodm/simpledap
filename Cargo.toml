@@ -1,0 +1,15 @@
+[package]
+name = "simpledap"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+rust_mi = {version = "0.1.0", path ="rust_mi"}
+serde = { version = "1.0.136", features = ["derive"] }
+serde_json = "1.0.79"
+tokio = "1.17.0"
+tokio-util = { version = "0.7.0", features = ["codec"] }
+
+[workspace]
