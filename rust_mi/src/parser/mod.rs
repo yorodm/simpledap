@@ -1,8 +1,16 @@
 use std::borrow::Cow;
 
-use nom::{IResult, branch::alt, bytes::complete::tag, character::complete::{alpha1, alphanumeric1}, combinator::{map, recognize}, multi::{many0, separated_list0}, sequence::{delimited, pair, separated_pair}};
-pub mod types;
+use nom::{
+    branch::alt,
+    bytes::complete::tag,
+    character::complete::{alpha1, alphanumeric1},
+    combinator::{map, recognize},
+    multi::{many0, separated_list0},
+    sequence::{delimited, pair, separated_pair},
+    IResult,
+};
 pub mod strings;
+pub mod types;
 
 use types::*;
 
@@ -22,9 +30,7 @@ fn async_class(input: &str) -> IResult<&str, AsyncOutputClass> {
 
 fn variable(input: &str) -> IResult<&str, Variable> {
     let parser = separated_pair(identifier, tag("="), value);
-    map(parser, |v| {
-        Variable(v.0,v.1)
-    })(input)
+    map(parser, |v| Variable(v.0, v.1))(input)
 }
 
 pub fn identifier(input: &str) -> IResult<&str, &str> {
@@ -46,7 +52,7 @@ fn constant(input: &str) -> IResult<&str, Value> {
 }
 
 fn tuple(input: &str) -> IResult<&str, Value> {
-    let parser = delimited(tag("["), separated_list0(tag(","), variable), tag("]"));
+    let parser = delimited(tag("{"), separated_list0(tag(","), variable), tag("}"));
     match map(parser, |v| TupleValue::from(v))(input) {
         Ok((r, t)) => Ok((r, Value::Tuple(t))),
         Err(x) => Err(x),
@@ -63,23 +69,50 @@ fn list(input: &str) -> IResult<&str, Value> {
 
 #[cfg(test)]
 mod tests {
-    use crate::parser::variable;
+    use std::borrow::Cow;
+
+    use crate::parser::{
+        list, tuple,
+        types::{ListValue, TupleValue, Value, Variable},
+        variable,
+    };
 
     #[test]
-    fn test_list() {
-        let result = 2 + 2;
-        assert_eq!(result, 4);
+    fn test_emtpy_list() {
+        let data = "[]";
+        let result = Value::List(ListValue::Empty);
+        assert_eq!(list(data).unwrap(), ("", result))
+    }
+
+    #[test]
+    fn test_list_variables() {
+        let data = "[type=\"breakpoint\"]";
+        let result = Value::List(ListValue::VariableList(vec![Variable(
+            "type",
+            Value::Const(Cow::from("breakpoint")),
+        )]));
+        assert_eq!(list(data).unwrap(), ("", result))
     }
 
     #[test]
     fn test_tuple() {
-        let result = 2 + 2;
-        assert_eq!(result, 4);
+        let data = "{type=\"breakpoint\"}";
+        let result = Value::Tuple(TupleValue::Data(vec![Variable(
+            "type",
+            Value::Const(Cow::from("breakpoint")),
+        )]));
+        assert_eq!(tuple(data).unwrap(), ("", result))
+    }
+
+    #[test]
+    fn test_empty_tuple() {
+        assert_eq!(tuple("{}").unwrap(), ("", Value::Tuple(TupleValue::Empty)))
     }
 
     #[test]
     fn test_variable() {
         let data = "type=\"breakpoint\"";
-        let x = variable(data);
+        let result = Variable("type", Value::Const(Cow::from("breakpoint")));
+        assert_eq!(variable(data).unwrap(), ("", result))
     }
 }
