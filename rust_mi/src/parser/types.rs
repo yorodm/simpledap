@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 #[derive(Debug, PartialEq)]
 pub enum Output<'a>{
     ResultRecord,
@@ -32,7 +34,7 @@ pub struct Variable<'a>(pub &'a str, pub Value<'a>);
 
 #[derive(Debug, PartialEq)]
 pub enum Value<'a>{
-    Const(&'a str),
+    Const(Cow<'a,str>),
     Tuple(TupleValue<'a>),
     List(ListValue<'a>)
 }
