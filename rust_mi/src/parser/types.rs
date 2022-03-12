@@ -1,78 +1,78 @@
 #[derive(Debug, PartialEq)]
-pub enum Output{
+pub enum Output<'a>{
     ResultRecord,
-    OOBRecord(OOB)
+    OOBRecord(OOB<'a>)
 }
 
 #[derive(Debug, PartialEq)]
-pub enum OOB{
-    StreamRecord(StreamOutput),
+pub enum OOB<'a>{
+    StreamRecord(StreamOutput<'a>),
     AsyncRecord
 }
 
 #[derive(Debug, PartialEq)]
-pub enum AsyncOutput{
-    ExeAsync(AsyncOutputData),
-    StatusAsync(AsyncOutputData),
-    NotifyAsync(AsyncOutputData)
+pub enum AsyncOutput<'a>{
+    ExeAsync(AsyncOutputData<'a>),
+    StatusAsync(AsyncOutputData<'a>),
+    NotifyAsync(AsyncOutputData<'a>)
 }
 
 #[derive(Debug,PartialEq)]
-pub struct  AsyncOutputData(Token,AsyncOutputClass,Option<Vec<Variable>>);
+pub struct  AsyncOutputData<'a>(Token,AsyncOutputClass,Option<Vec<Variable<'a>>>);
 
 #[derive(Debug, PartialEq)]
-pub enum StreamOutput{
-    Console(String),
-    Target(String),
-    Log(String)
+pub enum StreamOutput <'a>{
+    Console(&'a str),
+    Target(&'a str),
+    Log(&'a str)
 }
 
 #[derive(Debug, PartialEq)]
-pub struct Variable(pub String, pub Value);
+pub struct Variable<'a>(pub &'a str, pub Value<'a>);
 
 #[derive(Debug, PartialEq)]
-pub enum Value{
-    Const(String),
-    Tuple(TupleValue),
-    List(ListValue)
+pub enum Value<'a>{
+    Const(&'a str),
+    Tuple(TupleValue<'a>),
+    List(ListValue<'a>)
 }
 
-impl From<Vec<Variable>> for TupleValue{
+impl<'a> From<Vec<Variable<'a>>> for TupleValue<'a>{
     fn from(_: Vec<Variable>) -> Self {
         todo!()
     }
 }
 
-impl From<Vec<Variable>> for ListValue{
+impl<'a> From<Vec<Variable<'a>>> for ListValue<'a>{
     fn from(_: Vec<Variable>) -> Self {
         todo!()
     }
 }
 
-impl From<Vec<Value>> for ListValue{
+impl<'a> From<Vec<Value<'a>>> for ListValue<'a>{
     fn from(_: Vec<Value>) -> Self {
         todo!()
     }
 }
 
 #[derive(Debug, PartialEq)]
-pub enum ListValue{
+pub enum ListValue<'a>{
     Empty,
-    ValueList(Vec<Value>),
-    VariableList(Vec<Variable>)
+    ValueList(Vec<Value<'a>>),
+    VariableList(Vec<Variable<'a>>)
 }
 
 #[derive(Debug, PartialEq)]
-pub enum TupleValue{
+pub enum TupleValue<'a>{
     Empty,
-    Data(Vec<Variable>)
+    Data(Vec<Variable<'a>>)
 }
 
 #[derive(Debug, PartialEq)]
-pub enum StreamKind{
-    Console(String),
-    Target(String),
-    Log(String)
+pub enum StreamKind<'a>{
+    Console(&'a str),
+    Target(&'a str),
+    Log(&'a str)
 }
 
 #[derive(Debug, PartialEq)]
