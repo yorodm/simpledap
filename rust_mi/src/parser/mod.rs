@@ -1,7 +1,12 @@
+use std::borrow::Cow;
+
 use nom::{IResult, branch::alt, bytes::complete::tag, character::complete::{alpha1, alphanumeric1}, combinator::{map, recognize}, multi::{many0, separated_list0}, sequence::{delimited, pair, separated_pair}};
 pub mod types;
+pub mod strings;
 
 use types::*;
+
+use self::strings::parse_string;
 
 pub fn parse_mi_output(input: &str) -> IResult<&str, Output> {
     todo!()
@@ -18,7 +23,7 @@ fn async_class(input: &str) -> IResult<&str, AsyncOutputClass> {
 fn variable(input: &str) -> IResult<&str, Variable> {
     let parser = separated_pair(identifier, tag("="), value);
     map(parser, |v| {
-        Variable(v.0.to_owned(),v.1)
+        Variable(v.0,v.1)
     })(input)
 }
 
@@ -34,7 +39,10 @@ fn value(input: &str) -> IResult<&str, Value> {
 }
 
 fn constant(input: &str) -> IResult<&str, Value> {
-    todo!()
+    match parse_string(input) {
+        Ok((rest, x)) => Ok((rest, Value::Const(Cow::from(x)))),
+        Err(x) => Err(x),
+    }
 }
 
 fn tuple(input: &str) -> IResult<&str, Value> {
@@ -73,6 +81,5 @@ mod tests {
     fn test_variable() {
         let data = "type=\"breakpoint\"";
         let x = variable(data);
-        assert_eq!(result, 4);
     }
 }
