@@ -1,14 +1,12 @@
 use std::borrow::Cow;
 
-use nom::{
-    branch::alt,
-    bytes::complete::tag,
-    character::complete::{alpha1, alphanumeric1},
-    combinator::{map, recognize},
-    multi::{many0, separated_list0},
-    sequence::{delimited, pair, separated_pair},
-    IResult,
-};
+use nom::{branch::alt,
+          bytes::complete::tag,
+          character::complete::{alpha1, alphanumeric1},
+          combinator::{map, recognize},
+          multi::{many0, separated_list0},
+          sequence::{delimited, pair, separated_pair},
+          IResult};
 pub mod strings;
 pub mod types;
 
@@ -25,7 +23,7 @@ fn result_class(input: &str) -> IResult<&str, ResultClass> {
 }
 
 fn async_class(input: &str) -> IResult<&str, AsyncOutputClass> {
-    todo!()
+    alt()
 }
 
 fn variable(input: &str) -> IResult<&str, Variable> {
@@ -67,15 +65,20 @@ fn list(input: &str) -> IResult<&str, Value> {
     map(parser, |v| Value::List(v))(input)
 }
 
+fn termination(input: &str) -> IResult<&str, ()> {
+    match tag("(gdb)")(input) {
+        Ok((rest, _)) => Ok((rest, ())),
+        Err(x) => Err(x),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::borrow::Cow;
 
-    use crate::parser::{
-        list, tuple,
-        types::{ListValue, TupleValue, Value, Variable},
-        variable,
-    };
+    use crate::parser::{list, tuple,
+                        types::{ListValue, TupleValue, Value, Variable},
+                        variable};
 
     #[test]
     fn test_emtpy_list() {
@@ -111,8 +114,14 @@ mod tests {
 
     #[test]
     fn test_variable() {
-        let data = "type=\"breakpoint\"";
-        let result = Variable("type", Value::Const(Cow::from("breakpoint")));
+        let data = "bkpt={number=\"1\",type=\"breakpoint\"}";
+        let result = Variable(
+            "bkpt",
+            Value::Tuple(TupleValue::Data(vec![
+                Variable("number", Value::Const(Cow::from("1"))),
+                Variable("type", Value::Const(Cow::from("breakpoint"))),
+            ])),
+        );
         assert_eq!(variable(data).unwrap(), ("", result))
     }
 }
