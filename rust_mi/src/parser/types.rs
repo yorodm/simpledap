@@ -1,45 +1,45 @@
 use std::borrow::Cow;
 
 #[derive(Debug, PartialEq)]
-pub enum Output<'a>{
+pub enum Output<'a> {
     ResultRecord,
-    OOBRecord(OOB<'a>)
+    OOBRecord(OOB<'a>),
 }
 
 #[derive(Debug, PartialEq)]
-pub enum OOB<'a>{
+pub enum OOB<'a> {
     StreamRecord(StreamOutput<'a>),
-    AsyncRecord
+    AsyncRecord,
 }
 
 #[derive(Debug, PartialEq)]
-pub enum AsyncOutput<'a>{
+pub enum AsyncOutput<'a> {
     ExeAsync(AsyncOutputData<'a>),
     StatusAsync(AsyncOutputData<'a>),
-    NotifyAsync(AsyncOutputData<'a>)
+    NotifyAsync(AsyncOutputData<'a>),
 }
 
-#[derive(Debug,PartialEq)]
-pub struct  AsyncOutputData<'a>(Token,AsyncOutputClass,Option<Vec<Variable<'a>>>);
+#[derive(Debug, PartialEq)]
+pub struct AsyncOutputData<'a>(Token, AsyncOutputClass, Option<Vec<Variable<'a>>>);
 
 #[derive(Debug, PartialEq)]
-pub enum StreamOutput <'a>{
+pub enum StreamOutput<'a> {
     Console(&'a str),
     Target(&'a str),
-    Log(&'a str)
+    Log(&'a str),
 }
 
 #[derive(Debug, PartialEq)]
 pub struct Variable<'a>(pub &'a str, pub Value<'a>);
 
 #[derive(Debug, PartialEq)]
-pub enum Value<'a>{
-    Const(Cow<'a,str>),
+pub enum Value<'a> {
+    Const(Cow<'a, str>),
     Tuple(TupleValue<'a>),
-    List(ListValue<'a>)
+    List(ListValue<'a>),
 }
 
-impl<'a> From<Vec<Variable<'a>>> for TupleValue<'a>{
+impl<'a> From<Vec<Variable<'a>>> for TupleValue<'a> {
     fn from(v: Vec<Variable<'a>>) -> Self {
         if v.is_empty() {
             TupleValue::Empty
@@ -49,9 +49,9 @@ impl<'a> From<Vec<Variable<'a>>> for TupleValue<'a>{
     }
 }
 
-impl<'a> From<Vec<Variable<'a>>> for ListValue<'a>{
+impl<'a> From<Vec<Variable<'a>>> for ListValue<'a> {
     fn from(v: Vec<Variable<'a>>) -> Self {
-        if v.is_empty(){
+        if v.is_empty() {
             ListValue::Empty
         } else {
             ListValue::VariableList(v)
@@ -59,47 +59,46 @@ impl<'a> From<Vec<Variable<'a>>> for ListValue<'a>{
     }
 }
 
-impl<'a> From<Vec<Value<'a>>> for ListValue<'a>{
+impl<'a> From<Vec<Value<'a>>> for ListValue<'a> {
     fn from(_: Vec<Value>) -> Self {
         todo!()
     }
 }
 
 #[derive(Debug, PartialEq)]
-pub enum ListValue<'a>{
+pub enum ListValue<'a> {
     Empty,
     ValueList(Vec<Value<'a>>),
-    VariableList(Vec<Variable<'a>>)
+    VariableList(Vec<Variable<'a>>),
 }
 
 #[derive(Debug, PartialEq)]
-pub enum TupleValue<'a>{
+pub enum TupleValue<'a> {
     Empty,
-    Data(Vec<Variable<'a>>)
+    Data(Vec<Variable<'a>>),
 }
 
 #[derive(Debug, PartialEq)]
-pub enum StreamKind<'a>{
+pub enum StreamKind<'a> {
     Console(&'a str),
     Target(&'a str),
-    Log(&'a str)
+    Log(&'a str),
 }
 
 #[derive(Debug, PartialEq)]
-pub enum ResultClass{
+pub enum ResultOutputClass {
     Done,
     Running,
     Connected,
     Error,
-    Exit
+    Exit,
 }
 
 #[derive(Debug, PartialEq)]
-pub enum AsyncOutputClass{
+pub enum AsyncOutputClass {
     Stopped,
-    Unknown
+    Unknown,
 }
-
 
 #[derive(Debug, PartialEq)]
 pub struct Token(u32);
