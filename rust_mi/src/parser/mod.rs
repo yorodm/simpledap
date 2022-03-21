@@ -1,12 +1,6 @@
 use std::borrow::Cow;
 
-use nom::{branch::alt,
-          bytes::complete::tag,
-          character::complete::{alpha1, alphanumeric1},
-          combinator::{map, recognize},
-          multi::{many0, separated_list0},
-          sequence::{delimited, pair, separated_pair},
-          IResult};
+use nom::{IResult, branch::alt, bytes::complete::tag, character::complete::{alpha1, alphanumeric1, crlf, digit0}, combinator::{map, recognize}, error::Error, multi::{many0, separated_list0}, sequence::{delimited, pair, separated_pair, tuple}};
 pub mod strings;
 pub mod types;
 
@@ -16,6 +10,32 @@ use self::strings::parse_string;
 
 pub fn parse_mi_output(input: &str) -> IResult<&str, Output> {
     todo!()
+}
+
+fn result_record(input: &str) -> IResult<&str, AsyncOutput> {
+    todo!()
+}
+
+
+fn exec_async_output(input:&str) ->IResult<&str,AsyncOutput> {
+    let parser = tuple((
+        token,
+        tag("*"),
+        async_output,
+        crlf
+    ));
+    map(parser, |v|{
+
+    })(input)
+}
+
+fn async_output(input: &str) -> IResult<&str, (AsyncOutputClass, Option<Vec<Variable>>)> {
+     tuple((async_class,result_list))(input)
+}
+
+fn result_list(input:&str) -> IResult<&str, Option<Vec<Variable>>>{
+    todo!();
+
 }
 
 fn result_class(input: &str) -> IResult<&str, ResultOutputClass> {
@@ -33,6 +53,15 @@ fn async_class(input: &str) -> IResult<&str, AsyncOutputClass> {
     alt((stopped, unknown))(input)
 }
 
+fn token(input:&str) -> IResult<&str,Option<Token>> {
+    map(digit0, |v| {
+        match v.parse::<u32>(){
+            Ok(x) => Some(Token(x)),
+            Err(y) => None
+        }
+    })(input)
+}
+
 fn variable(input: &str) -> IResult<&str, Variable> {
     let parser = separated_pair(identifier, tag("="), value);
     map(parser, |v| Variable(v.0, v.1))(input)
@@ -46,7 +75,7 @@ pub fn identifier(input: &str) -> IResult<&str, &str> {
 }
 
 fn value(input: &str) -> IResult<&str, Value> {
-    alt((constant, tuple, list))(input)
+    alt((constant, tuple_value, list))(input)
 }
 
 fn constant(input: &str) -> IResult<&str, Value> {
@@ -56,7 +85,7 @@ fn constant(input: &str) -> IResult<&str, Value> {
     }
 }
 
-fn tuple(input: &str) -> IResult<&str, Value> {
+fn tuple_value(input: &str) -> IResult<&str, Value> {
     let parser = delimited(tag("{"), separated_list0(tag(","), variable), tag("}"));
     match map(parser, |v| TupleValue::from(v))(input) {
         Ok((r, t)) => Ok((r, Value::Tuple(t))),
@@ -128,12 +157,12 @@ mod tests {
             "type",
             Value::Const(Cow::from("breakpoint")),
         )]));
-        assert_eq!(tuple(data).unwrap(), ("", result))
+        assert_eq!(tuple_value(data).unwrap(), ("", result))
     }
 
     #[test]
     fn test_empty_tuple() {
-        assert_eq!(tuple("{}").unwrap(), ("", Value::Tuple(TupleValue::Empty)))
+        assert_eq!(tuple_value("{}").unwrap(), ("", Value::Tuple(TupleValue::Empty)))
     }
 
     #[test]

@@ -101,4 +101,4 @@ pub enum AsyncOutputClass {
 }
 
 #[derive(Debug, PartialEq)]
-pub struct Token(u32);
+pub struct Token(pub u32);
