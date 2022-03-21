@@ -1,20 +1,18 @@
+pub mod commands;
 pub mod parser;
 pub mod types;
-pub mod commands;
 
 #[derive(Debug)]
-pub struct MIController {
-
-}
+pub struct MIController {}
 
 impl Default for MIController {
     fn default() -> Self {
-        Self {  }
+        Self {}
     }
 }
 
 impl MIController {
-    pub fn new() -> MIController{
+    pub fn new() -> MIController {
         todo!()
     }
 }

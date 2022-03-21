@@ -14,7 +14,6 @@ disable_all_formatting = false
 empty_item_single_line = true
 error_on_line_overflow = false
 error_on_unformatted = false
-
 fn_single_line = false
 force_explicit_abi = true
 force_multiline_blocks = false

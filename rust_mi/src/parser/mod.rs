@@ -18,12 +18,19 @@ pub fn parse_mi_output(input: &str) -> IResult<&str, Output> {
     todo!()
 }
 
-fn result_class(input: &str) -> IResult<&str, ResultClass> {
-    todo!()
+fn result_class(input: &str) -> IResult<&str, ResultOutputClass> {
+    let done = map(tag("done"), |_| ResultOutputClass::Done);
+    let running = map(tag("running"), |_| ResultOutputClass::Running);
+    let connected = map(tag("connected"), |_| ResultOutputClass::Connected);
+    let error = map(tag("error"), |_| ResultOutputClass::Error);
+    let exit = map(tag("exit"), |_| ResultOutputClass::Exit);
+    alt((done, running, connected, error, exit))(input)
 }
 
 fn async_class(input: &str) -> IResult<&str, AsyncOutputClass> {
-    alt()
+    let stopped = map(tag("stopped"), |_| AsyncOutputClass::Stopped);
+    let unknown = map(alpha1, |_| AsyncOutputClass::Unknown);
+    alt((stopped, unknown))(input)
 }
 
 fn variable(input: &str) -> IResult<&str, Variable> {
@@ -75,10 +82,27 @@ fn termination(input: &str) -> IResult<&str, ()> {
 #[cfg(test)]
 mod tests {
     use std::borrow::Cow;
+    use crate::parser::types::{ListValue, ResultOutputClass, TupleValue, Value, Variable};
+    use crate::parser::*;
 
-    use crate::parser::{list, tuple,
-                        types::{ListValue, TupleValue, Value, Variable},
-                        variable};
+    #[test]
+    fn test_async_class() {
+        // TODO: test the other fields
+        let data = "stopped";
+        let result = AsyncOutputClass::Stopped;
+        assert_eq!(async_class(data).unwrap(), ("", result));
+        let data = "whatever";
+        let result = AsyncOutputClass::Unknown;
+        assert_eq!(async_class(data).unwrap(), ("", result))
+    }
+
+    #[test]
+    fn test_result_class() {
+        // TODO: test the other fields
+        let data = "done";
+        let result = ResultOutputClass::Done;
+        assert_eq!(result_class(data).unwrap(), ("", result))
+    }
 
     #[test]
     fn test_emtpy_list() {
