@@ -1,6 +1,12 @@
 use std::borrow::Cow;
 
-use nom::{IResult, branch::alt, bytes::complete::tag, character::complete::{alpha1, alphanumeric1, crlf, digit0}, combinator::{map, recognize}, error::Error, multi::{many0, separated_list0}, sequence::{delimited, pair, separated_pair, tuple}};
+use nom::{branch::alt,
+          bytes::complete::tag,
+          character::complete::{alpha1, alphanumeric1, crlf, digit0},
+          combinator::{map, recognize},
+          multi::{many0, separated_list0},
+          sequence::{delimited, pair, separated_pair, tuple},
+          IResult};
 pub mod strings;
 pub mod types;
 
@@ -16,26 +22,19 @@ fn result_record(input: &str) -> IResult<&str, AsyncOutput> {
     todo!()
 }
 
-
-fn exec_async_output(input:&str) ->IResult<&str,AsyncOutput> {
-    let parser = tuple((
-        token,
-        tag("*"),
-        async_output,
-        crlf
-    ));
-    map(parser, |v|{
-
-    })(input)
+fn exec_async_output(input: &str) -> IResult<&str, AsyncOutput> {
+    let parser = tuple((token, tag("*"), async_output, crlf));
+    todo!()
 }
 
-fn async_output(input: &str) -> IResult<&str, (AsyncOutputClass, Option<Vec<Variable>>)> {
-     tuple((async_class,result_list))(input)
+fn async_output(input: &str) -> IResult<&str, (AsyncOutputClass, Vec<Variable>)> {
+    let parser = tuple((async_class, tag(","), result_list));
+    map(parser, |v| (v.0, v.2))(input)
 }
 
-fn result_list(input:&str) -> IResult<&str, Option<Vec<Variable>>>{
-    todo!();
-
+// TODO: It's let's wasteful to use Option instead of an empty Vec
+fn result_list(input: &str) -> IResult<&str, Vec<Variable>> {
+    separated_list0(tag(","), variable)(input)
 }
 
 fn result_class(input: &str) -> IResult<&str, ResultOutputClass> {
@@ -53,12 +52,10 @@ fn async_class(input: &str) -> IResult<&str, AsyncOutputClass> {
     alt((stopped, unknown))(input)
 }
 
-fn token(input:&str) -> IResult<&str,Option<Token>> {
-    map(digit0, |v| {
-        match v.parse::<u32>(){
-            Ok(x) => Some(Token(x)),
-            Err(y) => None
-        }
+fn token(input: &str) -> IResult<&str, Option<Token>> {
+    map(digit0, |v: &str| match v.parse::<u32>() {
+        Ok(x) => Some(Token(x)),
+        Err(_) => None,
     })(input)
 }
 
@@ -69,8 +66,8 @@ fn variable(input: &str) -> IResult<&str, Variable> {
 
 pub fn identifier(input: &str) -> IResult<&str, &str> {
     recognize(pair(
-        alt((alpha1, tag("_"))),
-        many0(alt((alphanumeric1, tag("_")))),
+        alt((alpha1, tag("_"), tag("-"))),
+        many0(alt((alphanumeric1, tag("_"), tag("-")))),
     ))(input)
 }
 
@@ -110,9 +107,47 @@ fn termination(input: &str) -> IResult<&str, ()> {
 
 #[cfg(test)]
 mod tests {
+    use crate::parser::strings::parse_string;
+
+    use super::*;
     use std::borrow::Cow;
-    use crate::parser::types::{ListValue, ResultOutputClass, TupleValue, Value, Variable};
-    use crate::parser::*;
+
+    #[test]
+    fn test_async_output() {
+        let data = "stopped,reason=\"breakpoint-hit\",disp=\"keep\",bkptno=\"1\",thread-id=\"0\",\
+                    frame={addr=\"0x08048564\",func=\"main\",args=[{name=\"argc\",value=\"1\"},\
+                    {name=\"argv\",value=\"0xbfc4d4d4\"}],file=\"myprog.c\",fullname=\"/home/\
+                    nickrob/myprog.c\",line=\"68\",arch=\"i386:x86_64\"}";
+        assert_eq!(
+            async_output(data).unwrap(),
+            ("", (AsyncOutputClass::Stopped, Vec::new()))
+        )
+    }
+
+    #[test]
+    fn test_reuslt_list() {
+        let data = "reason=\"breakpoint-hit\",disp=\"keep\",bkptno=\"1\",thread-id=\"0\",\
+                    frame={data=\"5\"}";
+        assert_eq!(
+            result_list(data).unwrap(),
+            (
+                "",
+                vec![
+                    Variable("reason", Value::Const(Cow::from("breakpoint-hit"))),
+                    Variable("disp", Value::Const(Cow::from("keep"))),
+                    Variable("bkptno", Value::Const(Cow::from("1"))),
+                    Variable("thread-id", Value::Const(Cow::from("0"))),
+                    Variable(
+                        "frame",
+                        Value::Tuple(TupleValue::Data(vec![Variable(
+                            "data",
+                            Value::Const(Cow::from("5"))
+                        )]))
+                    ),
+                ]
+            )
+        );
+    }
 
     #[test]
     fn test_async_class() {
@@ -152,7 +187,7 @@ mod tests {
 
     #[test]
     fn test_tuple() {
-        let data = "{type=\"breakpoint\"}";
+        let data = "{type=\"breakpoint\"";
         let result = Value::Tuple(TupleValue::Data(vec![Variable(
             "type",
             Value::Const(Cow::from("breakpoint")),
@@ -162,7 +197,10 @@ mod tests {
 
     #[test]
     fn test_empty_tuple() {
-        assert_eq!(tuple_value("{}").unwrap(), ("", Value::Tuple(TupleValue::Empty)))
+        assert_eq!(
+            tuple_value("{}").unwrap(),
+            ("", Value::Tuple(TupleValue::Empty))
+        )
     }
 
     #[test]
@@ -176,5 +214,15 @@ mod tests {
             ])),
         );
         assert_eq!(variable(data).unwrap(), ("", result))
+    }
+
+    #[test]
+    fn test_parse_string(){
+        let data = "\"/home/nikita/pepe.c\"";
+        let x = match parse_string::<nom::error::VerboseError<&str>>(data){
+            Ok(x) => Ok(x),
+            Err(y) => Err(y),
+        };
+        println!("{:?}",x)
     }
 }
