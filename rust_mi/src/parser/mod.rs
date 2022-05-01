@@ -1,16 +1,12 @@
 use std::borrow::Cow;
 
-use nom::{branch::alt,
-          bytes::complete::tag,
-          character::complete::{alpha1, alphanumeric1, crlf, digit0},
-          combinator::{map, recognize},
-          multi::{many0, separated_list0},
-          sequence::{delimited, pair, separated_pair, tuple},
-          IResult};
+use nom::{IResult as NomResult, branch::alt, bytes::complete::tag, character::complete::{alpha1, alphanumeric1, crlf, digit0}, combinator::{map, recognize}, error::{VerboseError, context}, multi::{many0, separated_list0}, sequence::{delimited, pair, separated_pair, tuple}};
 pub mod strings;
 pub mod types;
 
 use types::*;
+
+type IResult<T, U> = NomResult<T, U, VerboseError<T>>;
 
 use self::strings::parse_string;
 
@@ -60,30 +56,30 @@ fn token(input: &str) -> IResult<&str, Option<Token>> {
 }
 
 fn variable(input: &str) -> IResult<&str, Variable> {
-    let parser = separated_pair(identifier, tag("="), value);
+    let parser =context("variable",  separated_pair(identifier, tag("="), value));
     map(parser, |v| Variable(v.0, v.1))(input)
 }
 
 pub fn identifier(input: &str) -> IResult<&str, &str> {
-    recognize(pair(
+    context("identifier",recognize(pair(
         alt((alpha1, tag("_"), tag("-"))),
         many0(alt((alphanumeric1, tag("_"), tag("-")))),
-    ))(input)
+    )))(input)
 }
 
 fn value(input: &str) -> IResult<&str, Value> {
-    alt((constant, tuple_value, list))(input)
+    context("value",alt((constant, tuple_value, list)))(input)
 }
 
 fn constant(input: &str) -> IResult<&str, Value> {
-    match parse_string(input) {
+    match context("constant",parse_string)(input) {
         Ok((rest, x)) => Ok((rest, Value::Const(Cow::from(x)))),
         Err(x) => Err(x),
     }
 }
 
 fn tuple_value(input: &str) -> IResult<&str, Value> {
-    let parser = delimited(tag("{"), separated_list0(tag(","), variable), tag("}"));
+    let parser = context("tuple_value", delimited(tag("{"), separated_list0(tag(","), variable), tag("}")));
     match map(parser, |v| TupleValue::from(v))(input) {
         Ok((r, t)) => Ok((r, Value::Tuple(t))),
         Err(x) => Err(x),
@@ -94,7 +90,7 @@ fn list(input: &str) -> IResult<&str, Value> {
     let variable_list = map(separated_list0(tag(","), variable), |v| ListValue::from(v));
     let value_list = map(separated_list0(tag(","), value), |v| ListValue::from(v));
     let variable_or_value = alt((variable_list, value_list));
-    let parser = delimited(tag("["), variable_or_value, tag("]"));
+    let parser = context("list", delimited(tag("["), variable_or_value, tag("]")));
     map(parser, |v| Value::List(v))(input)
 }
 

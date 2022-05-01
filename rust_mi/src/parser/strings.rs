@@ -1,4 +1,12 @@
-use nom::{IResult, branch::alt, bytes::streaming::{is_not, take_while_m_n}, character::{complete::multispace0, streaming::{char, multispace1}}, combinator::{map, map_opt, map_res, value, verify}, error::{FromExternalError, ParseError}, multi::fold_many0, sequence::{delimited, preceded}};
+use nom::{branch::alt,
+          bytes::streaming::{is_not, take_while_m_n},
+          character::{complete::multispace0,
+                      streaming::{char, multispace1}},
+          combinator::{map, map_opt, map_res, value, verify},
+          error::{FromExternalError, ParseError},
+          multi::fold_many0,
+          sequence::{delimited, preceded},
+          IResult};
 
 // parser combinators are constructed from the bottom up:
 // first we write parsers for the smallest elements (escaped characters),
@@ -143,13 +151,11 @@ where
 }
 
 // Trim whitespace
-pub fn ws<'a, F: 'a, O, E: ParseError<&'a str>>(inner: F) -> impl FnMut(&'a str) -> IResult<&'a str, O, E>
-  where
-  F: Fn(&'a str) -> IResult<&'a str, O, E>,
+pub fn ws<'a, F: 'a, O, E: ParseError<&'a str>>(
+    inner: F,
+) -> impl FnMut(&'a str) -> IResult<&'a str, O, E>
+where
+    F: Fn(&'a str) -> IResult<&'a str, O, E>,
 {
-  delimited(
-    multispace0,
-    inner,
-    multispace0
-  )
+    delimited(multispace0, inner, multispace0)
 }

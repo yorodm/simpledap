@@ -7,5 +7,6 @@ pkgs.mkShell {
     pkgs.cargo-edit
     pkgs.cargo-feature
     pkgs.rustfmt
+    pkgs.lldb_9
   ];
 }
