@@ -1,6 +1,6 @@
 use std::borrow::Cow;
 
-use nom::{IResult as NomResult, branch::alt, bytes::complete::tag, character::complete::{alpha1, alphanumeric1, crlf, digit0, multispace0}, combinator::{map, recognize}, error::{context, ParseError, VerboseError}, multi::{many0, separated_list0, separated_list1}, sequence::{delimited, pair, separated_pair, tuple}};
+use nom::{IResult as NomResult, branch::alt, bytes::complete::tag, character::complete::{alpha1, alphanumeric1, crlf, digit0, multispace0}, combinator::{map, peek, recognize}, error::{context, ParseError, VerboseError}, multi::{many0, separated_list0, separated_list1}, sequence::{delimited, pair, separated_pair, tuple}};
 pub mod strings;
 pub mod types;
 
@@ -92,10 +92,27 @@ fn tuple_value(input: &str) -> IResult<&str, Value> {
     }
 }
 
+fn variable_list(input: &str) -> IResult<&str, ListValue> {
+    context(
+        "variable_list",
+        map(separated_list1(tag(","), variable), |v| ListValue::from(v)),
+    )(input)
+}
+
+fn value_list(input: &str) -> IResult<&str, ListValue> {
+    context(
+        "value_list",
+        map(separated_list1(tag(","), value), |v| ListValue::from(v)),
+    )(input)
+}
+
+fn empty<T: Default>(input: &str)-> IResult <&str,T> {
+    map(ws(peek(tag("]"))), |_| T::default())(input)
+}
+
 fn list(input: &str) -> IResult<&str, Value> {
-    let variable_list = context("variable_list",map(separated_list0(tag(","), variable), |v| ListValue::from(v)));
-    let value_list = context("value_list", map(separated_list0(tag(","), value), |v| ListValue::from(v)));
-    let variable_or_value = alt((variable_list, value_list));
+
+    let variable_or_value = alt((variable_list, value_list, empty));
     let parser = context("list", delimited(tag("["), variable_or_value, tag("]")));
     map(parser, |v| Value::List(v))(input)
 }
@@ -110,59 +127,11 @@ fn termination(input: &str) -> IResult<&str, ()> {
 // Trim whitespace
 pub fn ws<'a, F: 'a, O>(inner: F) -> impl FnMut(&'a str) -> IResult<&'a str, O>
 where
-    F: Fn(&'a str) -> IResult<&'a str, O>,
+    F: FnMut(&'a str) -> IResult<&'a str, O>,
 {
     delimited(multispace0, inner, multispace0)
 }
 
-pub fn take_until_unbalanced(
-    opening_bracket: char,
-    closing_bracket: char,
-) -> impl Fn(&str) -> NomResult<&str, &str> {
-    move |i: &str| {
-        let mut index = 0;
-        let mut bracket_counter = 0;
-        while let Some(n) = &i[index..].find(&[opening_bracket, closing_bracket, '\\'][..]) {
-            index += n;
-            let mut it = i[index..].chars();
-            match it.next().unwrap_or_default() {
-                c if c == '\\' => {
-                    // Skip the escape char `\`.
-                    index += '\\'.len_utf8();
-                    // Skip also the following char.
-                    let c = it.next().unwrap_or_default();
-                    index += c.len_utf8();
-                }
-                c if c == opening_bracket => {
-                    bracket_counter += 1;
-                    index += opening_bracket.len_utf8();
-                }
-                c if c == closing_bracket => {
-                    // Closing bracket.
-                    bracket_counter -= 1;
-                    index += closing_bracket.len_utf8();
-                }
-                // Can not happen.
-                _ => unreachable!(),
-            };
-            // We found the unmatched closing bracket.
-            if bracket_counter == -1 {
-                // We do not consume it.
-                index -= closing_bracket.len_utf8();
-                return Ok((&i[index..], &i[0..index]));
-            };
-        }
-
-        if bracket_counter == 0 {
-            Ok(("", i))
-        } else {
-            Err(nom::Err::Error(nom::error::Error::from_error_kind(
-                i,
-                nom::error::ErrorKind::TakeUntil,
-            )))
-        }
-    }
-}
 
 #[cfg(test)]
 mod tests {
@@ -177,21 +146,29 @@ mod tests {
         ($input:ident,$comb:expr,$test:expr) => {
             match $comb {
                 Err(nom::Err::Error(e)) | Err(nom::Err::Failure(e)) => {
-                    println!("{}", convert_error($input, e))
+                    println!("Error {}", convert_error($input, e));
+                    panic!("failed");
                 }
-                Err(nom::Err::Incomplete(e)) => println!("{:?}", e),
+                Err(nom::Err::Incomplete(e)) => {
+                    println!("Incomplete {:?}", e);
+                    panic!("failed")
+                }
                 Ok(data) => assert_eq!(data, $test),
             }
         };
         ($input:ident,$comb:expr) => {
             match $comb {
                 Err(nom::Err::Error(e)) | Err(nom::Err::Failure(e)) => {
-                    println!("Error {}", convert_error($input, e))
+                    println!("Error {}", convert_error($input, e));
+                    panic!("failed");
                 }
-                Err(nom::Err::Incomplete(e)) => println!("Incomplete {:?}", e),
+                Err(nom::Err::Incomplete(e)) => {
+                    println!("Incomplete {:?}", e);
+                    panic!("failed")
+                }
                 Ok(data) => {
                     println!("{:?}", data);
-                    panic!("needs test");
+                    panic!("returns ok needs test");
                 }
             }
         };
@@ -244,9 +221,9 @@ mod tests {
     }
 
     #[test]
-    fn test_list_tuple(){
-        let data ="[{name=\"argc\",value=\"1\"},{name=\"argv\",value=\"0xbfc4d4d4\"}]";
-        do_test_result!(data,list(data))
+    fn test_list_tuple() {
+        let data = "[{name=\"argc\",value=\"1\"},{name=\"argv\",value=\"0xbfc4d4d4\"}]";
+        do_test_result!(data, list(data))
     }
 
     #[test]
@@ -261,12 +238,12 @@ mod tests {
 
     #[test]
     fn test_tuple() {
-        let data = "{type=\"breakpoint\"";
+        let data = "{type=\"breakpoint\"}";
         let result = Value::Tuple(TupleValue::Data(vec![Variable(
             "type",
             Value::Const(Cow::from("breakpoint")),
         )]));
-        assert_eq!(tuple_value(data).unwrap(), ("", result))
+        do_test_result!(data, tuple_value(data),("",result))
     }
 
     #[test]
@@ -278,12 +255,16 @@ mod tests {
     }
 
     #[test]
+    fn test_value_list() {
+        let data = "{name=\"argc\",value=\"1\"},{name=\"argv\",value=\"0xbfc4d4d4\"}";
+        do_test_result!(data, variable_list(data))
+    }
+
+    #[test]
     fn test_variable() {
-        let data = "args=[{name=\"argc\",value=\"1\"},\
-                    {name=\"argv\",value=\"0xbfc4d4d4\"}]";
+        let data = "args=[{name=\"argc\",value=\"1\"},{name=\"argv\",value=\"0xbfc4d4d4\"}]";
 
-
-        do_test_result!(data,variable(data))
+        do_test_result!(data, variable(data))
     }
 
     #[test]

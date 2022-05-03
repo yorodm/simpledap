@@ -60,8 +60,20 @@ impl<'a> From<Vec<Variable<'a>>> for ListValue<'a> {
 }
 
 impl<'a> From<Vec<Value<'a>>> for ListValue<'a> {
-    fn from(_: Vec<Value>) -> Self {
-        todo!()
+    fn from(v: Vec<Value<'a>>) -> Self {
+        ListValue::ValueList(v)
+    }
+}
+
+impl<'a> Default for ListValue<'a> {
+    fn default() -> Self {
+        ListValue::Empty
+    }
+}
+
+impl <'a> Default for TupleValue<'a> {
+    fn default() -> Self {
+        TupleValue::Empty
     }
 }
 
