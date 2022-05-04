@@ -1,10 +1,18 @@
 use std::borrow::Cow;
 
-use nom::{IResult as NomResult, branch::alt, bytes::complete::tag, character::complete::{alpha1, alphanumeric1, crlf, digit0, multispace0}, combinator::{map, peek, recognize}, error::{context, ParseError, VerboseError}, multi::{many0, separated_list0, separated_list1}, sequence::{delimited, pair, separated_pair, tuple}};
-pub mod strings;
-pub mod types;
+use nom::{branch::alt,
+          bytes::complete::tag,
+          character::complete::{alpha1, alphanumeric1, crlf, digit0, multispace0},
+          combinator::{map, peek, recognize},
+          error::{context, VerboseError},
+          multi::{many0, separated_list0, separated_list1},
+          sequence::{delimited, pair, separated_pair, tuple},
+          IResult as NomResult};
 
-use types::*;
+pub mod output_types;
+pub mod strings;
+
+use output_types::*;
 
 type IResult<T, U> = NomResult<T, U, VerboseError<T>>;
 
@@ -18,12 +26,51 @@ fn result_record(input: &str) -> IResult<&str, AsyncOutput> {
     todo!()
 }
 
-fn exec_async_output(input: &str) -> IResult<&str, AsyncOutput> {
-    let parser = tuple((token, tag("*"), async_output, crlf));
+fn oob_record(input: &str) -> IResult<&str, OOB> {
+    let ar = map(async_record, |x| OOB::AsyncRecord(x));
+    let sr = map(stream_record, |x| OOB::StreamRecord(x));
+    context("oob_record", alt((ar, sr)))(input)
+}
+
+fn stream_record(input: &str) -> IResult<&str, StreamOutput> {
     todo!()
 }
 
-fn async_output(input: &str) -> IResult<&str, (AsyncOutputClass, Vec<Variable>)> {
+fn async_record(input: &str) -> IResult<&str, AsyncOutput> {
+    todo!()
+}
+
+fn async_record_kind<'a, F>(
+    input: &'a str,
+    ctx: &'static str,
+    f: F,
+) -> IResult<&'a str, AsyncOutput<'a>>
+where
+    F: Fn((Option<Token>, OutputClass, Vec<Variable>)) -> AsyncOutput,
+{
+    let parser = context(ctx, tuple((token, tag("*"), async_output, crlf)));
+    map(parser, move |x| f((x.0, x.2 .0, x.2 .1)))(input)
+}
+
+fn exec_async_record(input: &str) -> IResult<&str, AsyncOutput> {
+    async_record_kind(input, "exec_async", |x| {
+        AsyncOutput::ExeAsync(OutputData(x.0, x.1, x.2))
+    })
+}
+
+fn status_async_record(input: &str) -> IResult<&str, AsyncOutput> {
+    async_record_kind(input, "status_async", |x| {
+        AsyncOutput::StatusAsync(OutputData(x.0, x.1, x.2))
+    })
+}
+
+fn notify_async_record(input: &str) -> IResult<&str, AsyncOutput> {
+    async_record_kind(input, "notify_async", |x| {
+        AsyncOutput::NotifyAsync(OutputData(x.0, x.1, x.2))
+    })
+}
+
+fn async_output(input: &str) -> IResult<&str, (OutputClass, Vec<Variable>)> {
     let parser = tuple((async_class, tag(","), result_list));
     map(parser, |v| (v.0, v.2))(input)
 }
@@ -33,18 +80,18 @@ fn result_list(input: &str) -> IResult<&str, Vec<Variable>> {
     context("result_list", separated_list1(tag(","), variable))(input)
 }
 
-fn result_class(input: &str) -> IResult<&str, ResultOutputClass> {
-    let done = map(tag("done"), |_| ResultOutputClass::Done);
-    let running = map(tag("running"), |_| ResultOutputClass::Running);
-    let connected = map(tag("connected"), |_| ResultOutputClass::Connected);
-    let error = map(tag("error"), |_| ResultOutputClass::Error);
-    let exit = map(tag("exit"), |_| ResultOutputClass::Exit);
+fn result_class(input: &str) -> IResult<&str, OutputClass> {
+    let done = map(tag("done"), |_| OutputClass::Done);
+    let running = map(tag("running"), |_| OutputClass::Running);
+    let connected = map(tag("connected"), |_| OutputClass::Connected);
+    let error = map(tag("error"), |_| OutputClass::Error);
+    let exit = map(tag("exit"), |_| OutputClass::Exit);
     alt((done, running, connected, error, exit))(input)
 }
 
-fn async_class(input: &str) -> IResult<&str, AsyncOutputClass> {
-    let stopped = map(tag("stopped"), |_| AsyncOutputClass::Stopped);
-    let unknown = map(alpha1, |_| AsyncOutputClass::Unknown);
+fn async_class(input: &str) -> IResult<&str, OutputClass> {
+    let stopped = map(tag("stopped"), |_| OutputClass::Stopped);
+    let unknown = map(alpha1, |_| OutputClass::Unknown);
     alt((stopped, unknown))(input)
 }
 
@@ -60,7 +107,7 @@ fn variable(input: &str) -> IResult<&str, Variable> {
     map(parser, |v| Variable(v.0, v.1))(input)
 }
 
-pub fn identifier(input: &str) -> IResult<&str, &str> {
+fn identifier(input: &str) -> IResult<&str, &str> {
     context(
         "identifier",
         recognize(pair(
@@ -106,32 +153,27 @@ fn value_list(input: &str) -> IResult<&str, ListValue> {
     )(input)
 }
 
-fn empty<T: Default>(input: &str)-> IResult <&str,T> {
-    map(ws(peek(tag("]"))), |_| T::default())(input)
+fn empty<T: Default>(input: &str) -> IResult<&str, T> {
+    context("context", map(ws(peek(tag("]"))), |_| T::default()))(input)
 }
 
 fn list(input: &str) -> IResult<&str, Value> {
-
     let variable_or_value = alt((variable_list, value_list, empty));
     let parser = context("list", delimited(tag("["), variable_or_value, tag("]")));
     map(parser, |v| Value::List(v))(input)
 }
 
 fn termination(input: &str) -> IResult<&str, ()> {
-    match tag("(gdb)")(input) {
-        Ok((rest, _)) => Ok((rest, ())),
-        Err(x) => Err(x),
-    }
+    map(tag("(gdb)"), |_| ())(input)
 }
 
 // Trim whitespace
-pub fn ws<'a, F: 'a, O>(inner: F) -> impl FnMut(&'a str) -> IResult<&'a str, O>
+fn ws<'a, F: 'a, O>(inner: F) -> impl FnMut(&'a str) -> IResult<&'a str, O>
 where
     F: FnMut(&'a str) -> IResult<&'a str, O>,
 {
     delimited(multispace0, inner, multispace0)
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -140,7 +182,7 @@ mod tests {
     use crate::parser::strings::parse_string;
 
     use super::*;
-    use std::{borrow::Cow, fmt::Debug};
+    use std::borrow::Cow;
 
     macro_rules! do_test_result {
         ($input:ident,$comb:expr,$test:expr) => {
@@ -182,7 +224,7 @@ mod tests {
                     nickrob/myprog.c\",line=\"68\",arch=\"i386:x86_64\"}";
         assert_eq!(
             async_output(data).unwrap(),
-            ("", (AsyncOutputClass::Stopped, Vec::new()))
+            ("", (OutputClass::Stopped, Vec::new()))
         )
     }
 
@@ -198,10 +240,10 @@ mod tests {
     fn test_async_class() {
         // TODO: test the other fields
         let data = "stopped";
-        let result = AsyncOutputClass::Stopped;
+        let result = OutputClass::Stopped;
         assert_eq!(async_class(data).unwrap(), ("", result));
         let data = "whatever";
-        let result = AsyncOutputClass::Unknown;
+        let result = OutputClass::Unknown;
         assert_eq!(async_class(data).unwrap(), ("", result))
     }
 
@@ -209,7 +251,7 @@ mod tests {
     fn test_result_class() {
         // TODO: test the other fields
         let data = "done";
-        let result = ResultOutputClass::Done;
+        let result = OutputClass::Done;
         assert_eq!(result_class(data).unwrap(), ("", result))
     }
 
@@ -223,7 +265,17 @@ mod tests {
     #[test]
     fn test_list_tuple() {
         let data = "[{name=\"argc\",value=\"1\"},{name=\"argv\",value=\"0xbfc4d4d4\"}]";
-        do_test_result!(data, list(data))
+        let result = Value::List(ListValue::ValueList(vec![
+            Value::Tuple(TupleValue::Data(vec![
+                Variable("name", Value::Const(Cow::from("argc"))),
+                Variable("value", Value::Const(Cow::from("1"))),
+            ])),
+            Value::Tuple(TupleValue::Data(vec![
+                Variable("name", Value::Const(Cow::from("argv"))),
+                Variable("value", Value::Const(Cow::from("0xbfc4d4d4"))),
+            ])),
+        ]));
+        do_test_result!(data, list(data), ("", result))
     }
 
     #[test]
@@ -233,7 +285,7 @@ mod tests {
             "type",
             Value::Const(Cow::from("breakpoint")),
         )]));
-        assert_eq!(list(data).unwrap(), ("", result))
+        do_test_result!(data, list(data), ("", result))
     }
 
     #[test]
@@ -243,7 +295,7 @@ mod tests {
             "type",
             Value::Const(Cow::from("breakpoint")),
         )]));
-        do_test_result!(data, tuple_value(data),("",result))
+        do_test_result!(data, tuple_value(data), ("", result))
     }
 
     #[test]
@@ -257,23 +309,46 @@ mod tests {
     #[test]
     fn test_value_list() {
         let data = "{name=\"argc\",value=\"1\"},{name=\"argv\",value=\"0xbfc4d4d4\"}";
-        do_test_result!(data, variable_list(data))
+        let result = ListValue::ValueList(vec![
+            Value::Tuple(TupleValue::Data(vec![
+                Variable("name", Value::Const(Cow::from("argc"))),
+                Variable("value", Value::Const(Cow::from("1"))),
+            ])),
+            Value::Tuple(TupleValue::Data(vec![
+                Variable("name", Value::Const(Cow::from("argv"))),
+                Variable("value", Value::Const(Cow::from("0xbfc4d4d4"))),
+            ])),
+        ]);
+        do_test_result!(data, variable_list(data), ("", result))
     }
 
     #[test]
-    fn test_variable() {
+    fn test_tuple_variable() {
         let data = "args=[{name=\"argc\",value=\"1\"},{name=\"argv\",value=\"0xbfc4d4d4\"}]";
+        let result = Variable(
+            "args",
+            Value::List(ListValue::ValueList(vec![
+                Value::Tuple(TupleValue::Data(vec![
+                    Variable("name", Value::Const(Cow::from("argc"))),
+                    Variable("value", Value::Const(Cow::from("1"))),
+                ])),
+                Value::Tuple(TupleValue::Data(vec![
+                    Variable("name", Value::Const(Cow::from("argv"))),
+                    Variable("value", Value::Const(Cow::from("0xbfc4d4d4"))),
+                ])),
+            ])),
+        );
 
-        do_test_result!(data, variable(data))
+        do_test_result!(data, variable(data), ("", result))
     }
 
     #[test]
     fn test_parse_string() {
         let data = "\"/home/nikita/pepe.c\"";
-        let x = match parse_string::<nom::error::VerboseError<&str>>(data) {
-            Ok(x) => Ok(x),
-            Err(y) => Err(y),
-        };
-        println!("{:?}", x)
+        do_test_result!(
+            data,
+            parse_string(data),
+            ("", String::from("/home/nikita/pepe.c"))
+        )
     }
 }

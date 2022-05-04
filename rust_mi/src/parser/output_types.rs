@@ -2,25 +2,25 @@ use std::borrow::Cow;
 
 #[derive(Debug, PartialEq)]
 pub enum Output<'a> {
-    ResultRecord,
+    ResultRecord(OutputData<'a>),
     OOBRecord(OOB<'a>),
 }
 
 #[derive(Debug, PartialEq)]
 pub enum OOB<'a> {
     StreamRecord(StreamOutput<'a>),
-    AsyncRecord,
+    AsyncRecord(AsyncOutput<'a>),
 }
 
 #[derive(Debug, PartialEq)]
 pub enum AsyncOutput<'a> {
-    ExeAsync(AsyncOutputData<'a>),
-    StatusAsync(AsyncOutputData<'a>),
-    NotifyAsync(AsyncOutputData<'a>),
+    ExeAsync(OutputData<'a>),
+    StatusAsync(OutputData<'a>),
+    NotifyAsync(OutputData<'a>),
 }
 
 #[derive(Debug, PartialEq)]
-pub struct AsyncOutputData<'a>(Token, AsyncOutputClass, Option<Vec<Variable<'a>>>);
+pub struct OutputData<'a>(pub Option<Token>, pub OutputClass, pub Vec<Variable<'a>>);
 
 #[derive(Debug, PartialEq)]
 pub enum StreamOutput<'a> {
@@ -32,11 +32,19 @@ pub enum StreamOutput<'a> {
 #[derive(Debug, PartialEq)]
 pub struct Variable<'a>(pub &'a str, pub Value<'a>);
 
+
 #[derive(Debug, PartialEq)]
 pub enum Value<'a> {
     Const(Cow<'a, str>),
     Tuple(TupleValue<'a>),
     List(ListValue<'a>),
+}
+
+
+impl<'a>  From<&'a str> for Value<'a> {
+    fn from(f: &'a str) -> Self {
+        Value::Const(Cow::from(f))
+    }
 }
 
 impl<'a> From<Vec<Variable<'a>>> for TupleValue<'a> {
@@ -71,7 +79,7 @@ impl<'a> Default for ListValue<'a> {
     }
 }
 
-impl <'a> Default for TupleValue<'a> {
+impl<'a> Default for TupleValue<'a> {
     fn default() -> Self {
         TupleValue::Empty
     }
@@ -98,16 +106,12 @@ pub enum StreamKind<'a> {
 }
 
 #[derive(Debug, PartialEq)]
-pub enum ResultOutputClass {
+pub enum OutputClass {
     Done,
     Running,
     Connected,
     Error,
     Exit,
-}
-
-#[derive(Debug, PartialEq)]
-pub enum AsyncOutputClass {
     Stopped,
     Unknown,
 }
